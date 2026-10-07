@@ -110,6 +110,18 @@ export const documentService = {
     const response = await api.delete(`/api/documents/${id}`);
     return response.data;
   },
+
+  /**
+   * Upload a document file with metadata (multipart/form-data)
+   */
+  async uploadDocument(formData) {
+    const response = await api.post('/api/documents/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
 };
 
 // Existing Mock Data & Documents Service (Retained for UI display)
