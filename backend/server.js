@@ -3,6 +3,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./src/config/db');
 const authRoutes = require('./src/routes/authRoutes');
+const dashboardRoutes = require('./src/routes/dashboardRoutes');
 
 // Load environment variables
 dotenv.config();
@@ -32,8 +33,9 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Mount Authentication Routes
+// Mount Authentication & Dashboard Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // Read PORT from process.env or fallback to 5000
 const PORT = process.env.PORT || 5000;
