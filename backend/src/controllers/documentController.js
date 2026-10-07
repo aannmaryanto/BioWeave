@@ -1,4 +1,6 @@
 const mongoose = require('mongoose');
+const path = require('path');
+const fs = require('fs');
 const Document = require('../models/Document');
 
 // In-memory fallback documents store when MongoDB is offline
@@ -9,7 +11,7 @@ const inMemoryDocuments = [
     description: 'Ionizable cationic lipids synthesized to evaluate liver-targeted transfection efficiency.',
     type: 'literature',
     fileName: 'lnp_formulation_2026.pdf',
-    filePath: '/uploads/lnp_formulation_2026.pdf',
+    filePath: '',
     fileSize: 4404019,
     mimeType: 'application/pdf',
     status: 'processed',
@@ -23,7 +25,7 @@ const inMemoryDocuments = [
     description: 'Standardized operating procedure for temperature-optimized Cas12a RNP electroporation.',
     type: 'protocol',
     fileName: 'cas12a_protocol_sop.pdf',
-    filePath: '/uploads/cas12a_protocol_sop.pdf',
+    filePath: '',
     fileSize: 1887436,
     mimeType: 'application/pdf',
     status: 'processed',
@@ -37,7 +39,7 @@ const inMemoryDocuments = [
     description: 'Assayed double mutant S238F/W159H against wild-type PETase thermostability.',
     type: 'lab_note',
     fileName: 'petase_thermal_shift_notes.docx',
-    filePath: '/uploads/petase_thermal_shift_notes.docx',
+    filePath: '',
     fileSize: 870400,
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     status: 'processed',
@@ -159,7 +161,7 @@ const getDocumentById = async (req, res) => {
 };
 
 /**
- * Create a new document entry (metadata)
+ * Create a new document entry (metadata only)
  * @route POST /api/documents
  * @access Private
  */
@@ -196,7 +198,7 @@ const createDocument = async (req, res) => {
         description: description ? description.trim() : '',
         type: normType,
         fileName: fileName || 'document.pdf',
-        filePath: '/uploads/document.pdf',
+        filePath: '',
         fileSize: fileSize || 1024500,
         mimeType: mimeType || 'application/pdf',
         status: 'uploaded',
@@ -211,6 +213,133 @@ const createDocument = async (req, res) => {
   } catch (error) {
     console.error('Create Document Error:', error);
     return res.status(500).json({ message: 'Error creating document', error: error.message });
+  }
+};
+
+/**
+ * Upload a document with file attachment
+ * @route POST /api/documents/upload
+ * @access Private
+ */
+const uploadDocument = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const { title, description, type } = req.body;
+
+    if (!title || !type) {
+      if (req.file.path && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch (e) {}
+      }
+      return res.status(400).json({ message: 'Please provide document title and type' });
+    }
+
+    const normType = normalizeType(type) || type.toLowerCase();
+    const fileName = req.file.originalname;
+    const filePath = req.file.path;
+    const fileSize = req.file.size;
+    const mimeType = req.file.mimetype;
+
+    if (mongoose.connection.readyState === 1 && typeof userId === 'object') {
+      const doc = await Document.create({
+        title: title.trim(),
+        description: description ? description.trim() : '',
+        type: normType,
+        fileName,
+        filePath,
+        fileSize,
+        mimeType,
+        status: 'uploaded',
+        uploadedBy: userId,
+      });
+
+      return res.status(201).json(doc);
+    } else {
+      // In-memory fallback upload
+      const newDoc = {
+        _id: `doc-${Date.now()}`,
+        title: title.trim(),
+        description: description ? description.trim() : '',
+        type: normType,
+        fileName,
+        filePath,
+        fileSize,
+        mimeType,
+        status: 'uploaded',
+        uploadedBy: userId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      inMemoryDocuments.unshift(newDoc);
+      return res.status(201).json(newDoc);
+    }
+  } catch (error) {
+    console.error('Upload Document Error:', error);
+    if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+      try { fs.unlinkSync(req.file.path); } catch (e) {}
+    }
+    return res.status(500).json({ message: 'Error uploading document', error: error.message });
+  }
+};
+
+/**
+ * Download / View document file
+ * @route GET /api/documents/:id/file
+ * @access Private
+ */
+const getDocumentFile = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const docId = req.params.id;
+
+    let targetDoc = null;
+
+    if (mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(docId)) {
+      targetDoc = await Document.findById(docId);
+    } else {
+      targetDoc = inMemoryDocuments.find(
+        (d) => String(d._id) === String(docId) || String(d._id) === `doc-${docId}`
+      );
+    }
+
+    if (!targetDoc) {
+      return res.status(404).json({ message: 'Document not found' });
+    }
+
+    // Check ownership
+    if (
+      targetDoc.uploadedBy &&
+      String(targetDoc.uploadedBy) !== 'mem-user-default' &&
+      String(targetDoc.uploadedBy) !== String(userId)
+    ) {
+      return res.status(403).json({ message: 'Not authorized to access this document file' });
+    }
+
+    if (!targetDoc.filePath) {
+      return res.status(404).json({ message: 'No file attached to this document' });
+    }
+
+    const absolutePath = path.resolve(targetDoc.filePath);
+
+    // Prevent path traversal
+    const uploadDir = path.resolve(__dirname, '../../uploads');
+    if (!absolutePath.startsWith(uploadDir) && !fs.existsSync(absolutePath)) {
+      return res.status(404).json({ message: 'File not found on server' });
+    }
+
+    if (!fs.existsSync(absolutePath)) {
+      return res.status(404).json({ message: 'File not found on server' });
+    }
+
+    return res.sendFile(absolutePath);
+  } catch (error) {
+    console.error('Get Document File Error:', error);
+    return res.status(500).json({ message: 'Error fetching document file', error: error.message });
   }
 };
 
@@ -267,7 +396,7 @@ const updateDocument = async (req, res) => {
 };
 
 /**
- * Delete a document
+ * Delete a document and its stored file
  * @route DELETE /api/documents/:id
  * @access Private
  */
@@ -281,6 +410,10 @@ const deleteDocument = async (req, res) => {
 
       if (!doc || String(doc.uploadedBy) !== String(userId)) {
         return res.status(404).json({ message: 'Document not found' });
+      }
+
+      if (doc.filePath && fs.existsSync(doc.filePath)) {
+        try { fs.unlinkSync(doc.filePath); } catch (err) {}
       }
 
       await doc.deleteOne();
@@ -300,6 +433,10 @@ const deleteDocument = async (req, res) => {
         return res.status(404).json({ message: 'Document not found' });
       }
 
+      if (targetDoc.filePath && fs.existsSync(targetDoc.filePath)) {
+        try { fs.unlinkSync(targetDoc.filePath); } catch (err) {}
+      }
+
       inMemoryDocuments.splice(docIndex, 1);
       return res.status(200).json({ message: 'Document deleted successfully', id: docId });
     }
@@ -313,6 +450,8 @@ module.exports = {
   getDocuments,
   getDocumentById,
   createDocument,
+  uploadDocument,
+  getDocumentFile,
   updateDocument,
   deleteDocument,
   inMemoryDocuments,

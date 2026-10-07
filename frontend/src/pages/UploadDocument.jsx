@@ -6,59 +6,125 @@ import {
   CheckCircle2,
   X,
   Sparkles,
-  Info
+  Info,
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import PageContainer from '../components/layout/PageContainer';
 import Card, { CardTitle } from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Input, { Select, Textarea } from '../components/ui/Input';
+import { documentService } from '../services/api';
 
 export default function UploadDocument() {
   const navigate = useNavigate();
   const [selectedFile, setSelectedFile] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [title, setTitle] = useState('');
-  const [type, setType] = useState('Research Paper');
-  const [category, setCategory] = useState('Lipid Nanoparticles');
+  const [type, setType] = useState('literature');
   const [description, setDescription] = useState('');
   const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+
+  // Client-side file validation helper
+  const validateFile = (file) => {
+    if (!file) return false;
+
+    const allowedExtensions = ['.pdf', '.txt', '.doc', '.docx'];
+    const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+
+    if (!allowedExtensions.includes(ext)) {
+      setError('Unsupported file type. Allowed formats: PDF, TXT, DOC, DOCX');
+      return false;
+    }
+
+    const maxSizeBytes = 10 * 1024 * 1024; // 10 MB
+    if (file.size > maxSizeBytes) {
+      setError('File size exceeds the 10 MB limit');
+      return false;
+    }
+
+    setError(null);
+    return true;
+  };
 
   const handleFileDrop = (e) => {
     e.preventDefault();
     setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0];
-      setSelectedFile(file);
-      if (!title) setTitle(file.name.replace(/\.[^/.]+$/, ""));
+      if (validateFile(file)) {
+        setSelectedFile(file);
+        if (!title) {
+          setTitle(file.name.replace(/\.[^/.]+$/, ''));
+        }
+      }
     }
   };
 
   const handleFileSelect = (e) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      setSelectedFile(file);
-      if (!title) setTitle(file.name.replace(/\.[^/.]+$/, ""));
+      if (validateFile(file)) {
+        setSelectedFile(file);
+        if (!title) {
+          setTitle(file.name.replace(/\.[^/.]+$/, ''));
+        }
+      }
     }
   };
 
-  const handleUploadSubmit = (e) => {
+  const handleUploadSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedFile && !title) return;
+    setError(null);
+    setSuccess(null);
+
+    if (!selectedFile) {
+      setError('Please select a document file to upload');
+      return;
+    }
+
+    if (!title.trim()) {
+      setError('Please enter a document title');
+      return;
+    }
+
+    if (!validateFile(selectedFile)) {
+      return;
+    }
 
     setUploading(true);
-    let current = 0;
-    const interval = setInterval(() => {
-      current += 20;
-      setProgress(current);
-      if (current >= 100) {
-        clearInterval(interval);
-        setTimeout(() => {
-          setUploading(false);
-          navigate('/documents');
-        }, 400);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('title', title.trim());
+      formData.append('type', type);
+      if (description.trim()) {
+        formData.append('description', description.trim());
       }
-    }, 200);
+
+      const response = await documentService.uploadDocument(formData);
+      setSuccess('Document uploaded successfully!');
+      
+      // Clear form
+      setSelectedFile(null);
+      setTitle('');
+      setDescription('');
+
+      // Navigate to /documents after short delay
+      setTimeout(() => {
+        navigate('/documents');
+      }, 800);
+    } catch (err) {
+      console.error('Upload Error:', err);
+      setError(
+        err.response?.data?.message || err.message || 'Failed to upload document'
+      );
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -67,7 +133,7 @@ export default function UploadDocument() {
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
         <h2 className="text-xl font-bold text-slate-900 tracking-tight">Upload Research Document</h2>
         <p className="text-xs text-slate-500 mt-1">
-          Import PDF research papers, FASTA sequence files, PDB protein structures, or lab protocols for AI vector indexing.
+          Import research papers, protocols, or lab notes to your BioWeave repository.
         </p>
       </div>
 
@@ -75,6 +141,22 @@ export default function UploadDocument() {
         
         {/* Main Upload Form (2 cols) */}
         <div className="lg:col-span-2 space-y-6">
+
+          {/* Feedback Messages */}
+          {error && (
+            <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-center gap-3 text-rose-800 text-xs">
+              <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {success && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-3 text-emerald-900 text-xs font-medium">
+              <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0" />
+              <span>{success}</span>
+            </div>
+          )}
+
           <form onSubmit={handleUploadSubmit} className="space-y-6">
             
             {/* Drag & Drop Area */}
@@ -99,7 +181,7 @@ export default function UploadDocument() {
                   id="file-upload-input"
                   className="hidden"
                   onChange={handleFileSelect}
-                  accept=".pdf,.fasta,.pdb,.docx,.txt,.csv"
+                  accept=".pdf,.txt,.doc,.docx"
                 />
 
                 {!selectedFile ? (
@@ -113,7 +195,7 @@ export default function UploadDocument() {
                         <span className="text-emerald-800 font-bold underline">browse files</span>
                       </p>
                       <p className="text-xs text-slate-500 mt-1">
-                        Supports PDF, FASTA, PDB, DOCX, TXT, CSV (Up to 50MB)
+                        Supports PDF, TXT, DOC, DOCX (Up to 10MB)
                       </p>
                     </div>
                   </label>
@@ -123,14 +205,17 @@ export default function UploadDocument() {
                       <div className="p-2.5 rounded-lg bg-emerald-100 text-emerald-800">
                         <FileText className="w-5 h-5" />
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-xs font-semibold text-slate-900 truncate max-w-xs">{selectedFile.name}</p>
                         <p className="text-[10px] text-slate-500">{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</p>
                       </div>
                     </div>
                     <button
                       type="button"
-                      onClick={() => setSelectedFile(null)}
+                      onClick={() => {
+                        setSelectedFile(null);
+                        setError(null);
+                      }}
                       className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg"
                     >
                       <X className="w-4 h-4" />
@@ -142,7 +227,7 @@ export default function UploadDocument() {
 
             {/* Document Metadata Form */}
             <Card className="space-y-4">
-              <CardTitle subtitle="Provide details for automatic metadata indexing">
+              <CardTitle subtitle="Provide details for document organization">
                 Document Details
               </CardTitle>
 
@@ -162,27 +247,11 @@ export default function UploadDocument() {
                   value={type}
                   onChange={(e) => setType(e.target.value)}
                   options={[
-                    'Research Paper',
-                    'Protocol',
-                    'Lab Note',
-                    'Genomic Sequence Report',
-                    'Clinical Trial Data',
+                    { value: 'literature', label: 'Literature / Research Paper' },
+                    { value: 'protocol', label: 'Protocol (SOP)' },
+                    { value: 'lab_note', label: 'Lab Notebook Entry' },
                   ]}
                   required
-                />
-
-                <Select
-                  label="Research Domain / Category"
-                  id="docCategory"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  options={[
-                    'Lipid Nanoparticles',
-                    'Gene Editing & CRISPR',
-                    'Enzymology & Protein Folding',
-                    'Immunology & CAR-T',
-                    'Analytical Chemistry & LC-MS',
-                  ]}
                 />
               </div>
 
@@ -192,34 +261,16 @@ export default function UploadDocument() {
                 rows={3}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Add experimental background, sample batch IDs, or key hypotheses..."
+                placeholder="Add experimental background, sample batch IDs, or key notes..."
               />
             </Card>
-
-            {/* Upload Progress Bar if Uploading */}
-            {uploading && (
-              <Card className="space-y-2 bg-emerald-50/50 border-emerald-200">
-                <div className="flex items-center justify-between text-xs font-semibold text-emerald-900">
-                  <span className="flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-emerald-700 animate-spin" />
-                    Processing and indexing document vectors...
-                  </span>
-                  <span>{progress}%</span>
-                </div>
-                <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
-                  <div
-                    className="bg-emerald-700 h-full transition-all duration-300 rounded-full"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-              </Card>
-            )}
 
             {/* Submit Button */}
             <div className="flex items-center justify-end gap-3">
               <Button
                 variant="secondary"
                 size="md"
+                type="button"
                 onClick={() => navigate('/documents')}
               >
                 Cancel
@@ -229,10 +280,11 @@ export default function UploadDocument() {
                 type="submit"
                 variant="primary"
                 size="md"
-                leftIcon={UploadCloud}
+                leftIcon={uploading ? Loader2 : UploadCloud}
                 isLoading={uploading}
+                disabled={uploading}
               >
-                Upload & Process with AI
+                {uploading ? 'Uploading...' : 'Upload Document'}
               </Button>
             </div>
 
@@ -244,21 +296,21 @@ export default function UploadDocument() {
           <Card className="space-y-4 bg-emerald-950 text-slate-100 border-emerald-900">
             <div className="flex items-center gap-2 text-emerald-400">
               <Sparkles className="w-5 h-5" />
-              <h3 className="font-bold text-sm text-white uppercase tracking-wider">AI Processing Pipeline</h3>
+              <h3 className="font-bold text-sm text-white uppercase tracking-wider">Document Management</h3>
             </div>
 
             <ul className="space-y-3 text-xs text-emerald-100/80">
               <li className="flex items-start gap-2.5">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                <span><strong>OCR & Layout Extraction:</strong> Extracts structural sections, figures, tables, and references.</span>
+                <span><strong>Secure File Storage:</strong> Files are stored safely with access controls restricted to your account.</span>
               </li>
               <li className="flex items-start gap-2.5">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                <span><strong>Entity Recognition:</strong> Automatically tags Genes, Proteins, Chemical Molecules, and Organisms.</span>
+                <span><strong>Metadata Tracking:</strong> Organizes documents by type, filename, size, and creation timestamp.</span>
               </li>
               <li className="flex items-start gap-2.5">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                <span><strong>Dense Vector Embedding:</strong> Indexes text chunks for semantic research retrieval.</span>
+                <span><strong>Supported Formats:</strong> PDF, TXT, DOC, DOCX up to 10 MB per file.</span>
               </li>
             </ul>
           </Card>
@@ -274,12 +326,12 @@ export default function UploadDocument() {
                 <span>Research papers & patents</span>
               </div>
               <div className="p-2 bg-slate-50 rounded-lg border border-slate-100 flex items-center justify-between">
-                <span className="font-mono font-medium">.FASTA / .PDB</span>
-                <span>Genomic & protein files</span>
+                <span className="font-mono font-medium">.DOC / .DOCX</span>
+                <span>Microsoft Word documents</span>
               </div>
               <div className="p-2 bg-slate-50 rounded-lg border border-slate-100 flex items-center justify-between">
-                <span className="font-mono font-medium">.DOCX / .TXT</span>
-                <span>Lab notes & protocol drafts</span>
+                <span className="font-mono font-medium">.TXT</span>
+                <span>Plain text lab notes</span>
               </div>
             </div>
           </Card>
