@@ -122,6 +122,22 @@ export const documentService = {
     });
     return response.data;
   },
+
+  /**
+   * Manually trigger text extraction processing for a document
+   */
+  async processDocument(id) {
+    const response = await api.post(`/api/documents/${id}/process`);
+    return response.data;
+  },
+
+  /**
+   * Get extracted text for a document
+   */
+  async getExtractedText(id) {
+    const response = await api.get(`/api/documents/${id}/text`);
+    return response.data;
+  },
 };
 
 // Existing Mock Data & Documents Service (Retained for UI display)

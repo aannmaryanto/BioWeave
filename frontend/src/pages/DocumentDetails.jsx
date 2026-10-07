@@ -123,28 +123,68 @@ export default function DocumentDetails() {
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2.5">
             <DocumentTypeBadge type={doc.type} size="md" />
-            <span className="text-xs font-semibold text-slate-500">• {doc.category}</span>
+            <span className="text-xs font-semibold text-slate-500">• {doc.category || doc.type}</span>
           </div>
 
-          <Badge
-            variant={doc.status === 'Processed' ? 'success' : 'warning'}
-            size="md"
-            dot
-          >
-            {doc.status} & Indexed
-          </Badge>
+          <div className="flex items-center gap-2">
+            {/* Status Badge */}
+            <Badge
+              variant={
+                (doc.processingStatus || doc.status) === 'completed' || doc.status === 'processed' || doc.status === 'Processed'
+                  ? 'success'
+                  : (doc.processingStatus || doc.status) === 'processing' || doc.status === 'Pending'
+                  ? 'warning'
+                  : (doc.processingStatus || doc.status) === 'failed' || doc.status === 'Error'
+                  ? 'danger'
+                  : 'info'
+              }
+              size="md"
+              dot
+            >
+              Processing Status: {doc.processingStatus ? doc.processingStatus.charAt(0).toUpperCase() + doc.processingStatus.slice(1) : doc.status || 'Uploaded'}
+            </Badge>
+
+            {/* Manual Process Button if failed or pending */}
+            {((doc.processingStatus === 'failed' || doc.processingStatus === 'pending' || doc.status === 'failed') && (
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={async () => {
+                  setLoading(true);
+                  try {
+                    const res = await documentService.processDocument(doc._id || doc.id);
+                    const updated = await documentService.getDocument(doc._id || doc.id);
+                    setDoc(updated);
+                  } catch (e) {
+                    console.error('Process retry error:', e);
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+              >
+                Re-process Text
+              </Button>
+            ))}
+          </div>
         </div>
 
         <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-snug">
           {doc.title}
         </h1>
 
+        {doc.processingError && (
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start gap-2">
+            <span className="font-bold">Extraction Error:</span>
+            <span>{doc.processingError}</span>
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 pt-2 border-t border-slate-100">
-          <span><strong>Authors:</strong> {doc.authors}</span>
+          <span><strong>Authors:</strong> {doc.authors || doc.uploadedBy?.name || 'BioWeave Researcher'}</span>
           <span>•</span>
-          <span><strong>Journal:</strong> {doc.journal}</span>
+          <span><strong>Journal:</strong> {doc.journal || 'BioWeave Knowledge Base'}</span>
           <span>•</span>
-          <span><strong>Published:</strong> {doc.date}</span>
+          <span><strong>Published:</strong> {doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : doc.date || 'N/A'}</span>
         </div>
       </Card>
 
@@ -157,8 +197,8 @@ export default function DocumentDetails() {
           {/* Navigation Tabs */}
           <div className="bg-white p-1.5 rounded-xl border border-slate-200 flex items-center gap-1 text-xs shadow-xs">
             {[
-              { id: 'insights', label: 'AI Key Insights', icon: Sparkles },
               { id: 'content', label: 'Extracted Content', icon: FileText },
+              { id: 'insights', label: 'AI Key Insights', icon: Sparkles },
               { id: 'related', label: 'Related Research', icon: Layers },
             ].map((tab) => {
               const Icon = tab.icon;
@@ -180,7 +220,27 @@ export default function DocumentDetails() {
             })}
           </div>
 
-          {/* Tab 1: AI Key Insights */}
+          {/* Tab 1: Extracted Text Content */}
+          {activeTab === 'content' && (
+            <Card className="space-y-4">
+              <CardTitle subtitle="Normalized plain text extracted from uploaded document">
+                Document Extracted Content
+              </CardTitle>
+
+              {doc.extractedText && doc.extractedText.trim().length > 0 ? (
+                <div className="p-4 bg-slate-900 text-slate-100 rounded-xl font-mono text-xs leading-relaxed whitespace-pre-wrap max-h-[500px] overflow-y-auto border border-slate-800 shadow-inner">
+                  {doc.extractedText}
+                </div>
+              ) : (
+                <div className="p-8 text-center bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-slate-500 text-xs">
+                  <p className="font-semibold text-slate-700">No Extracted Text Available</p>
+                  <p>{doc.processingError ? doc.processingError : 'Text extraction has not completed or file is pending processing.'}</p>
+                </div>
+              )}
+            </Card>
+          )}
+
+          {/* Tab 2: AI Key Insights */}
           {activeTab === 'insights' && (
             <Card className="space-y-4">
               <CardTitle subtitle="Synthesized by BioWeave Neural Models">
@@ -188,22 +248,28 @@ export default function DocumentDetails() {
               </CardTitle>
 
               <div className="space-y-3">
-                {doc.aiInsights && doc.aiInsights.map((insight, idx) => (
-                  <div key={idx} className="p-3.5 bg-emerald-50/60 border border-emerald-200/70 rounded-xl flex items-start gap-3 text-xs text-slate-800 leading-relaxed">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-800 shrink-0 mt-0.5" />
-                    <span>{insight}</span>
-                  </div>
-                ))}
+                {doc.aiInsights && doc.aiInsights.length > 0 ? (
+                  doc.aiInsights.map((insight, idx) => (
+                    <div key={idx} className="p-3.5 bg-emerald-50/60 border border-emerald-200/70 rounded-xl flex items-start gap-3 text-xs text-slate-800 leading-relaxed">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-800 shrink-0 mt-0.5" />
+                      <span>{insight}</span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-slate-500 italic p-3 bg-slate-50 rounded-lg">AI key insights will be generated during the vector indexing phase.</p>
+                )}
               </div>
 
-              <div className="pt-4 border-t border-slate-100 space-y-3">
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  Summary & Key Methodology
-                </h4>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  {doc.snippet}
-                </p>
-              </div>
+              {doc.snippet && (
+                <div className="pt-4 border-t border-slate-100 space-y-3">
+                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    Summary & Key Methodology
+                  </h4>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    {doc.snippet}
+                  </p>
+                </div>
+              )}
             </Card>
           )}
 

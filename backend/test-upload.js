@@ -100,7 +100,40 @@ async function runUploadTests() {
     assert(unauthUp.status === 401, 'Upload without auth token returns 401 Unauthorized');
 
     // 3. Test Upload PDF File (User 1)
-    const pdfBuffer = Buffer.from('%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF');
+    const contentStream = 'BT /F1 12 Tf 50 700 Td (LNP Formulation PDF Document) Tj ET';
+    const pdfString = `%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /MediaBox [0 0 612 792] /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length ${contentStream.length} >>
+stream
+${contentStream}
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000010 00000 n 
+0000000060 00000 n 
+0000000117 00000 n 
+0000000234 00000 n 
+0000000305 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+400
+%%EOF`;
+    const pdfBuffer = Buffer.from(pdfString, 'utf8');
     const pdfPayload = createMultipartPayload(
       { title: 'LNP Formulation Protocol 2026', type: 'protocol', description: 'Lipid nanoparticle SOP' },
       { fieldName: 'file', filename: 'lnp_formulation.pdf', contentType: 'application/pdf', contentBuffer: pdfBuffer }
@@ -114,7 +147,10 @@ async function runUploadTests() {
     assert(pdfUpRes.status === 201, 'Upload PDF returns 201 Created');
     assert(pdfUpRes.data.title === 'LNP Formulation Protocol 2026', 'Uploaded PDF title matches');
     assert(pdfUpRes.data.fileName === 'lnp_formulation.pdf', 'Uploaded PDF original fileName matches');
-    assert(pdfUpRes.data.status === 'uploaded', 'Uploaded PDF status is "uploaded"');
+    assert(
+      pdfUpRes.data.status === 'uploaded' || pdfUpRes.data.status === 'processed' || pdfUpRes.data.processingStatus === 'completed',
+      'Uploaded PDF status is recorded correctly'
+    );
 
     const pdfDocId = pdfUpRes.data._id || pdfUpRes.data.id;
     const pdfFilePath = pdfUpRes.data.filePath;

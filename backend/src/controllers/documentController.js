@@ -15,6 +15,18 @@ const inMemoryDocuments = [
     fileSize: 4404019,
     mimeType: 'application/pdf',
     status: 'processed',
+    processingStatus: 'completed',
+    extractedText: `Abstract: mRNA therapeutics rely heavily on lipid nanoparticle (LNP) vectors for systemic cellular delivery. Here, we systematically screened a library of novel ionizable amino lipids to determine optimal molar ratios for hepatic cell uptake.
+
+Methods & Materials:
+1. Lipid Mix: Cationic lipid / DSPC / Cholesterol / PEG-lipid at molar ratio 50:10:38.5:1.5.
+2. Microfluidic Formulation: Formulated using NanoAssemblr at a total flow rate of 12 mL/min.
+3. In vitro Transfection: Primary mouse hepatocytes were incubated for 24h prior to luminescence readout.
+
+Results & Discussion:
+Optimal formulation LNP-89 produced >94% encapsulation efficiency with average hydrodynamic diameter of 78.4 nm (PDI < 0.08). Systemic administration demonstrated 88% liver tropism.`,
+    processingError: '',
+    processedAt: new Date('2026-02-14'),
     uploadedBy: 'mem-user-default',
     createdAt: new Date('2026-02-14'),
     updatedAt: new Date('2026-02-14'),
@@ -29,6 +41,21 @@ const inMemoryDocuments = [
     fileSize: 1887436,
     mimeType: 'application/pdf',
     status: 'processed',
+    processingStatus: 'completed',
+    extractedText: `Purpose: This protocol describes steps to reconstitute AsCas12a protein with synthetic crRNA guides for high-efficiency double-strand break induction.
+
+Reagents Required:
+- Recombinant AsCas12a Ultra (10 µg/µL)
+- Custom crRNA (100 µM in TE buffer)
+- Electroporation Buffer B (BioWeave formulation)
+
+Step-by-step Procedure:
+1. Incubate 2 µM Cas12a with 2.5 µM crRNA at 25°C for 15 minutes to form RNPs.
+2. Prepare protoplast suspension (2x10^5 cells per 100 µL).
+3. Mix RNPs with cell suspension and deliver single pulse at 160V, 15ms.
+4. Incubate cells in dark at 23°C for 48 hours prior to genomic DNA extraction.`,
+    processingError: '',
+    processedAt: new Date('2026-03-01'),
     uploadedBy: 'mem-user-default',
     createdAt: new Date('2026-03-01'),
     updatedAt: new Date('2026-03-01'),
@@ -43,6 +70,23 @@ const inMemoryDocuments = [
     fileSize: 870400,
     mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     status: 'processed',
+    processingStatus: 'completed',
+    extractedText: `Date: March 4, 2026
+Objective: Evaluate thermostability of computationally designed PETase variants (BioWeave Fold v3.2 predictions).
+
+Experimental Setup:
+- Dye: SYPRO Orange (5x final concentration)
+- Protein concentration: 0.5 mg/mL
+- Temperature gradient: 25°C to 95°C at 1.0°C/min on qPCR instrument.
+
+Observations:
+- Wild-type PETase Tm: 48.2°C
+- Variant EV-04 (S238F/W159H): 57.6°C
+- Variant EV-09 (S238F/W159H/N241K): 62.1°C
+
+Conclusion: EV-09 demonstrates exceptional thermostability compatible with industrial 60°C bioreactor conditions.`,
+    processingError: '',
+    processedAt: new Date('2026-03-04'),
     uploadedBy: 'mem-user-default',
     createdAt: new Date('2026-03-04'),
     updatedAt: new Date('2026-03-04'),
@@ -186,6 +230,7 @@ const createDocument = async (req, res) => {
         fileSize: fileSize || 0,
         mimeType: mimeType || 'application/pdf',
         status: 'uploaded',
+        processingStatus: 'pending',
         uploadedBy: userId,
       });
 
@@ -202,6 +247,9 @@ const createDocument = async (req, res) => {
         fileSize: fileSize || 1024500,
         mimeType: mimeType || 'application/pdf',
         status: 'uploaded',
+        processingStatus: 'pending',
+        extractedText: '',
+        processingError: '',
         uploadedBy: userId,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -217,7 +265,7 @@ const createDocument = async (req, res) => {
 };
 
 /**
- * Upload a document with file attachment
+ * Upload a document with file attachment and trigger processing
  * @route POST /api/documents/upload
  * @access Private
  */
@@ -244,8 +292,10 @@ const uploadDocument = async (req, res) => {
     const fileSize = req.file.size;
     const mimeType = req.file.mimetype;
 
+    let createdDoc = null;
+
     if (mongoose.connection.readyState === 1 && typeof userId === 'object') {
-      const doc = await Document.create({
+      createdDoc = await Document.create({
         title: title.trim(),
         description: description ? description.trim() : '',
         type: normType,
@@ -254,13 +304,12 @@ const uploadDocument = async (req, res) => {
         fileSize,
         mimeType,
         status: 'uploaded',
+        processingStatus: 'pending',
         uploadedBy: userId,
       });
-
-      return res.status(201).json(doc);
     } else {
       // In-memory fallback upload
-      const newDoc = {
+      createdDoc = {
         _id: `doc-${Date.now()}`,
         title: title.trim(),
         description: description ? description.trim() : '',
@@ -270,20 +319,132 @@ const uploadDocument = async (req, res) => {
         fileSize,
         mimeType,
         status: 'uploaded',
+        processingStatus: 'pending',
+        extractedText: '',
+        processingError: '',
         uploadedBy: userId,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
 
-      inMemoryDocuments.unshift(newDoc);
-      return res.status(201).json(newDoc);
+      inMemoryDocuments.unshift(createdDoc);
     }
+
+    // Trigger document text extraction processing
+    try {
+      const { processDocument } = require('../services/documentProcessingService');
+      await processDocument(createdDoc);
+    } catch (procErr) {
+      console.warn('Automatic extraction warning:', procErr.message);
+    }
+
+    return res.status(201).json(createdDoc);
   } catch (error) {
     console.error('Upload Document Error:', error);
     if (req.file && req.file.path && fs.existsSync(req.file.path)) {
       try { fs.unlinkSync(req.file.path); } catch (e) {}
     }
     return res.status(500).json({ message: 'Error uploading document', error: error.message });
+  }
+};
+
+/**
+ * Process a document manually or re-trigger text extraction
+ * @route POST /api/documents/:id/process
+ * @access Private
+ */
+const processDocumentHandler = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const docId = req.params.id;
+
+    let doc = null;
+
+    if (mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(docId)) {
+      doc = await Document.findById(docId);
+    } else {
+      doc = inMemoryDocuments.find(
+        (d) => String(d._id) === String(docId) || String(d._id) === `doc-${docId}`
+      );
+    }
+
+    if (!doc) {
+      return res.status(404).json({ message: 'Document not found' });
+    }
+
+    // Check ownership
+    if (
+      doc.uploadedBy &&
+      String(doc.uploadedBy) !== 'mem-user-default' &&
+      String(doc.uploadedBy) !== String(userId)
+    ) {
+      return res.status(403).json({ message: 'Not authorized to process this document' });
+    }
+
+    const { processDocument } = require('../services/documentProcessingService');
+    const processedDoc = await processDocument(doc);
+
+    return res.status(200).json({
+      message: processedDoc.processingStatus === 'completed'
+        ? 'Document processed successfully'
+        : `Processing finished with status: ${processedDoc.processingStatus}`,
+      document: {
+        id: processedDoc._id || processedDoc.id,
+        processingStatus: processedDoc.processingStatus,
+        processedAt: processedDoc.processedAt || null,
+        textLength: (processedDoc.extractedText || '').length,
+        processingError: processedDoc.processingError || '',
+      },
+    });
+  } catch (error) {
+    console.error('Process Document Error:', error);
+    return res.status(500).json({ message: 'Error processing document', error: error.message });
+  }
+};
+
+/**
+ * Get extracted text for a document
+ * @route GET /api/documents/:id/text
+ * @access Private
+ */
+const getExtractedTextHandler = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const docId = req.params.id;
+
+    let doc = null;
+
+    if (mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(docId)) {
+      doc = await Document.findById(docId);
+    } else {
+      doc = inMemoryDocuments.find(
+        (d) => String(d._id) === String(docId) || String(d._id) === `doc-${docId}`
+      );
+    }
+
+    if (!doc) {
+      return res.status(404).json({ message: 'Document not found' });
+    }
+
+    // Check ownership
+    if (
+      doc.uploadedBy &&
+      String(doc.uploadedBy) !== 'mem-user-default' &&
+      String(doc.uploadedBy) !== String(userId)
+    ) {
+      return res.status(403).json({ message: 'Not authorized to access extracted text for this document' });
+    }
+
+    return res.status(200).json({
+      documentId: doc._id || doc.id,
+      processingStatus: doc.processingStatus || (doc.status === 'processed' || doc.status === 'Processed' ? 'completed' : 'pending'),
+      extractedText: doc.extractedText || '',
+      processingError: doc.processingError || '',
+      processedAt: doc.processedAt || null,
+    });
+  } catch (error) {
+    console.error('Get Extracted Text Error:', error);
+    return res.status(500).json({ message: 'Error retrieving extracted text', error: error.message });
   }
 };
 
@@ -451,6 +612,8 @@ module.exports = {
   getDocumentById,
   createDocument,
   uploadDocument,
+  processDocumentHandler,
+  getExtractedTextHandler,
   getDocumentFile,
   updateDocument,
   deleteDocument,

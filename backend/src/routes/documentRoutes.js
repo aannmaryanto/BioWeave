@@ -5,6 +5,8 @@ const {
   getDocumentById,
   createDocument,
   uploadDocument,
+  processDocumentHandler,
+  getExtractedTextHandler,
   getDocumentFile,
   updateDocument,
   deleteDocument,
@@ -19,6 +21,12 @@ router.route('/')
 
 // File upload endpoint
 router.post('/upload', protect, handleUpload, uploadDocument);
+
+// Document processing endpoint
+router.post('/:id/process', protect, processDocumentHandler);
+
+// Extracted text retrieval endpoint
+router.get('/:id/text', protect, getExtractedTextHandler);
 
 // File download / view endpoint
 router.get('/:id/file', protect, getDocumentFile);
