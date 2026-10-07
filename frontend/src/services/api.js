@@ -233,7 +233,7 @@ export const fetchDocuments = async () => {
 };
 
 export const fetchDocumentById = async (id) => {
-  return MOCK_DOCUMENTS.find(doc => doc.id === id) || MOCK_DOCUMENTS[0];
+  return MOCK_DOCUMENTS.find(doc => doc.id === id || doc.id === `doc-${id}`) || MOCK_DOCUMENTS[0];
 };
 
 export const fetchStats = async () => {

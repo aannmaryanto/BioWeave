@@ -21,6 +21,7 @@ export default function App() {
         <Route path="/upload" element={<UploadDocument />} />
         <Route path="/search" element={<KnowledgeSearch />} />
         <Route path="/assistant" element={<AIAssistant />} />
+        <Route path="/ai-assistant" element={<AIAssistant />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

@@ -67,7 +67,7 @@ export default function DocumentDetails() {
             variant="primary"
             size="sm"
             leftIcon={MessageSquare}
-            onClick={() => navigate(`/assistant?doc=${doc.id}`)}
+            onClick={() => navigate(`/ai-assistant?doc=${doc.id}`)}
           >
             Ask AI About Document
           </Button>

@@ -70,7 +70,7 @@ export default function Dashboard() {
               variant="accent"
               size="sm"
               leftIcon={Sparkles}
-              onClick={() => navigate('/assistant')}
+              onClick={() => navigate('/ai-assistant')}
             >
               Ask AI Assistant
             </Button>
@@ -202,7 +202,7 @@ export default function Dashboard() {
               </button>
 
               <button
-                onClick={() => navigate('/assistant')}
+                onClick={() => navigate('/ai-assistant')}
                 className="w-full p-2.5 bg-slate-50 hover:bg-emerald-50 text-slate-800 hover:text-emerald-950 rounded-xl border border-slate-200/80 hover:border-emerald-300 transition-all flex items-center justify-between text-left group"
               >
                 <div className="flex items-center gap-2.5">

@@ -22,7 +22,7 @@ export default function Sidebar({ isOpen, onClose }) {
     { name: 'Document Library', path: '/documents', icon: FileText },
     { name: 'Upload Document', path: '/upload', icon: UploadCloud },
     { name: 'Knowledge Search', path: '/search', icon: Search },
-    { name: 'AI Assistant', path: '/assistant', icon: Bot },
+    { name: 'AI Assistant', path: '/ai-assistant', icon: Bot },
   ];
 
   const handleLogout = () => {
@@ -80,7 +80,9 @@ export default function Sidebar({ isOpen, onClose }) {
             </div>
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = location.pathname === item.path || (item.path === '/dashboard' && location.pathname === '/');
+              const isActive = location.pathname === item.path || 
+                (item.path === '/dashboard' && location.pathname === '/') ||
+                (item.path === '/ai-assistant' && location.pathname === '/assistant');
               return (
                 <NavLink
                   key={item.path}

@@ -29,7 +29,7 @@ export default function Navbar({ onMenuToggle, title = "Dashboard" }) {
 
         {/* AI Assistant shortcut */}
         <button
-          onClick={() => navigate('/assistant')}
+          onClick={() => navigate('/ai-assistant')}
           className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-emerald-900 bg-emerald-50 hover:bg-emerald-100/80 rounded-lg border border-emerald-200/80 transition-colors"
         >
           <Sparkles className="w-3.5 h-3.5 text-emerald-700" />
