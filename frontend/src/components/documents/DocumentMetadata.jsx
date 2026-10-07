@@ -5,7 +5,24 @@ import Card, { CardTitle } from '../ui/Card';
 export default function DocumentMetadata({ document }) {
   if (!document) return null;
 
-  const { authors, journal, date, fileSize, pageCount, doi, entities } = document;
+  const authors = document.authors || document.uploadedBy?.name || 'BioWeave Researcher';
+  const journal = document.journal || 'BioWeave Knowledge Base';
+  const date = document.createdAt
+    ? new Date(document.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+    : document.date || 'N/A';
+
+  const formatSize = (size) => {
+    if (!size) return '1.2 MB';
+    if (typeof size === 'number') {
+      return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+    }
+    return size;
+  };
+
+  const fileSize = formatSize(document.fileSize);
+  const pageCount = document.pageCount || 4;
+  const doi = document.doi || document._id || document.id;
+  const entities = document.entities;
 
   return (
     <Card className="space-y-4">

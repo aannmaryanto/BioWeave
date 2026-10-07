@@ -36,66 +36,109 @@ export default function DocumentTable({ documents = [] }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {documents.map((doc) => (
-              <tr
-                key={doc.id}
-                className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
-                onClick={() => navigate(`/documents/${doc.id}`)}
-              >
-                <td className="px-4 py-3">
-                  <div className="flex items-start gap-2.5">
-                    <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-800 group-hover:bg-emerald-100 transition-colors mt-0.5 shrink-0">
-                      <FileText className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="font-bold text-slate-900 group-hover:text-emerald-900 transition-colors line-clamp-1">
-                        {doc.title}
-                      </span>
-                      <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
-                        <span>{doc.authors}</span>
-                        <span>•</span>
-                        <span>{doc.fileSize}</span>
+            {documents.map((doc) => {
+              const docId = doc._id || doc.id;
+              const formattedDate = doc.createdAt
+                ? new Date(doc.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                : doc.date || 'N/A';
+              
+              const formatFileSize = (size) => {
+                if (!size) return null;
+                if (typeof size === 'number') {
+                  if (size < 1024) return `${size} B`;
+                  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+                  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+                }
+                return size;
+              };
+
+              const displaySubText = doc.authors || doc.fileName || doc.description || 'BioWeave Research Document';
+              const displayFileSize = formatFileSize(doc.fileSize);
+
+              // Status mapping
+              let statusVariant = 'default';
+              let statusText = doc.status || 'uploaded';
+              const lowerStatus = String(doc.status).toLowerCase();
+
+              if (lowerStatus === 'processed') {
+                statusVariant = 'success';
+                statusText = 'Processed';
+              } else if (lowerStatus === 'processing' || lowerStatus === 'pending') {
+                statusVariant = 'warning';
+                statusText = 'Processing';
+              } else if (lowerStatus === 'uploaded') {
+                statusVariant = 'info';
+                statusText = 'Uploaded';
+              } else if (lowerStatus === 'failed' || lowerStatus === 'error') {
+                statusVariant = 'danger';
+                statusText = 'Failed';
+              }
+
+              return (
+                <tr
+                  key={docId}
+                  className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
+                  onClick={() => navigate(`/documents/${docId}`)}
+                >
+                  <td className="px-4 py-3">
+                    <div className="flex items-start gap-2.5">
+                      <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-800 group-hover:bg-emerald-100 transition-colors mt-0.5 shrink-0">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="font-bold text-slate-900 group-hover:text-emerald-900 transition-colors line-clamp-1">
+                          {doc.title}
+                        </span>
+                        <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
+                          <span className="truncate max-w-[240px]">{displaySubText}</span>
+                          {displayFileSize && (
+                            <>
+                              <span>•</span>
+                              <span>{displayFileSize}</span>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </td>
-                <td className="px-3.5 py-3 whitespace-nowrap">
-                  <DocumentTypeBadge type={doc.type} size="sm" />
-                </td>
-                <td className="px-3.5 py-3 whitespace-nowrap text-xs font-medium text-slate-700">
-                  {doc.category || 'General'}
-                </td>
-                <td className="px-3.5 py-3 whitespace-nowrap text-xs text-slate-500">
-                  {doc.date}
-                </td>
-                <td className="px-3.5 py-3 whitespace-nowrap">
-                  <Badge
-                    variant={doc.status === 'Processed' ? 'success' : doc.status === 'Pending' ? 'warning' : 'danger'}
-                    size="sm"
-                    dot
-                  >
-                    {doc.status}
-                  </Badge>
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap text-right text-xs" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex items-center justify-end gap-1">
-                    <button
-                      onClick={() => navigate(`/documents/${doc.id}`)}
-                      className="p-1.5 text-slate-500 hover:text-emerald-800 hover:bg-emerald-50 rounded-md transition-colors"
-                      title="View details"
+                  </td>
+                  <td className="px-3.5 py-3 whitespace-nowrap">
+                    <DocumentTypeBadge type={doc.type} size="sm" />
+                  </td>
+                  <td className="px-3.5 py-3 whitespace-nowrap text-xs font-medium text-slate-700">
+                    {doc.category || (doc.type === 'protocol' ? 'Protocol' : doc.type === 'lab_note' ? 'Lab Note' : 'Literature')}
+                  </td>
+                  <td className="px-3.5 py-3 whitespace-nowrap text-xs text-slate-500">
+                    {formattedDate}
+                  </td>
+                  <td className="px-3.5 py-3 whitespace-nowrap">
+                    <Badge
+                      variant={statusVariant}
+                      size="sm"
+                      dot
                     >
-                      <Eye className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      className="p-1.5 text-slate-500 hover:text-emerald-800 hover:bg-emerald-50 rounded-md transition-colors"
-                      title="Download file"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                      {statusText}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-right text-xs" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => navigate(`/documents/${docId}`)}
+                        className="p-1.5 text-slate-500 hover:text-emerald-800 hover:bg-emerald-50 rounded-md transition-colors"
+                        title="View details"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        className="p-1.5 text-slate-500 hover:text-emerald-800 hover:bg-emerald-50 rounded-md transition-colors"
+                        title="Download file"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
