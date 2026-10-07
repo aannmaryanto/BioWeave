@@ -50,6 +50,25 @@ export const authService = {
   },
 };
 
+// Dashboard Service Methods
+export const dashboardService = {
+  /**
+   * Get authenticated user dashboard stats
+   */
+  async getStats() {
+    const response = await api.get('/api/dashboard/stats');
+    return response.data;
+  },
+
+  /**
+   * Get recent documents for dashboard
+   */
+  async getRecentDocuments() {
+    const response = await api.get('/api/dashboard/recent');
+    return response.data;
+  },
+};
+
 // Existing Mock Data & Documents Service (Retained for UI display)
 export const MOCK_DOCUMENTS = [
   {

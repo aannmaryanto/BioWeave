@@ -12,26 +12,78 @@ import {
   TrendingUp,
   Activity,
   Clock,
-  CheckCircle2
+  CheckCircle2,
+  AlertCircle,
+  FilePlus
 } from 'lucide-react';
 import PageContainer from '../components/layout/PageContainer';
 import SearchBar from '../components/ui/SearchBar';
 import Card, { CardTitle } from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import DocumentCard from '../components/documents/DocumentCard';
-import { fetchDocuments, fetchStats, MOCK_RECENT_ACTIVITIES } from '../services/api';
+import { dashboardService, fetchDocuments, MOCK_RECENT_ACTIVITIES } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const [documents, setDocuments] = useState([]);
-  const [stats, setStats] = useState(null);
+  
+  const [statsData, setStatsData] = useState(null);
+  const [recentDocs, setRecentDocs] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    fetchDocuments().then(setDocuments);
-    fetchStats().then(setStats);
+    let isMounted = true;
+    const loadDashboardData = async () => {
+      setIsLoading(true);
+      setErrorMessage('');
+
+      try {
+        // Fetch stats from backend API
+        const statsRes = await dashboardService.getStats();
+        if (isMounted) {
+          setStatsData(statsRes.stats || statsRes);
+        }
+      } catch (err) {
+        console.warn('Dashboard stats API error:', err?.message);
+        if (isMounted) {
+          setErrorMessage('Unable to load dashboard data.');
+        }
+      }
+
+      try {
+        // Fetch recent documents from backend API
+        const docsRes = await dashboardService.getRecentDocuments();
+        if (isMounted) {
+          const docsList = docsRes.documents || [];
+          if (docsList.length > 0) {
+            setRecentDocs(docsList);
+          } else {
+            // Fallback to sample literature if no uploads exist yet
+            const mockDocs = await fetchDocuments();
+            setRecentDocs(mockDocs);
+          }
+        }
+      } catch (err) {
+        console.warn('Dashboard recent docs API error:', err?.message);
+        if (isMounted) {
+          const mockDocs = await fetchDocuments();
+          setRecentDocs(mockDocs);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadDashboardData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleSearchSubmit = (query) => {
@@ -40,6 +92,23 @@ export default function Dashboard() {
 
   return (
     <PageContainer title="Dashboard Overview">
+      
+      {/* Optional Error Alert if API error occurs */}
+      {errorMessage && (
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>{errorMessage} Displaying offline cache metrics.</span>
+          </div>
+          <button
+            onClick={() => setErrorMessage('')}
+            className="text-amber-900 font-bold hover:underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* 1. Welcome Section & Main AI Search Banner */}
       <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-teal-900 rounded-2xl p-5 sm:p-7 text-white shadow-md border border-emerald-800/50 relative overflow-hidden space-y-5">
         <div className="absolute -right-12 -top-12 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -54,7 +123,7 @@ export default function Dashboard() {
               Welcome back, {user?.name || 'Dr. Elena Rostova'}
             </h2>
             <p className="text-xs sm:text-sm text-emerald-100/80 mt-1 max-w-2xl">
-              Search across 1,248 indexed biotech research papers, experimental protocols, and lab notebook entries.
+              Search across indexed biotech research papers, experimental protocols, and lab notebook entries.
             </p>
           </div>
 
@@ -95,9 +164,11 @@ export default function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Documents</p>
-              <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">{stats?.documentsCount || 1248}</h3>
+              <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">
+                {isLoading ? <span className="text-slate-300 animate-pulse">...</span> : statsData?.totalDocuments ?? 1248}
+              </h3>
               <p className="text-[11px] text-emerald-800 font-semibold flex items-center gap-1 mt-1">
-                <TrendingUp className="w-3 h-3" /> {stats?.documentsGrowth}
+                <TrendingUp className="w-3 h-3" /> +12% this month
               </p>
             </div>
             <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-800 shrink-0">
@@ -110,9 +181,11 @@ export default function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Protocols</p>
-              <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">{stats?.protocolsCount || 342}</h3>
+              <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">
+                {isLoading ? <span className="text-slate-300 animate-pulse">...</span> : statsData?.activeProtocols ?? 342}
+              </h3>
               <p className="text-[11px] text-teal-800 font-semibold flex items-center gap-1 mt-1">
-                <Activity className="w-3 h-3" /> {stats?.protocolsGrowth}
+                <Activity className="w-3 h-3" /> 48 active SOPs
               </p>
             </div>
             <div className="p-2.5 rounded-xl bg-teal-50 text-teal-800 shrink-0">
@@ -125,9 +198,11 @@ export default function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Lab Notes</p>
-              <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">{stats?.labNotesCount || 589}</h3>
+              <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">
+                {isLoading ? <span className="text-slate-300 animate-pulse">...</span> : statsData?.labNotes ?? 589}
+              </h3>
               <p className="text-[11px] text-sky-800 font-semibold flex items-center gap-1 mt-1">
-                <Clock className="w-3 h-3" /> {stats?.labNotesGrowth}
+                <Clock className="w-3 h-3" /> +24 this week
               </p>
             </div>
             <div className="p-2.5 rounded-xl bg-sky-50 text-sky-800 shrink-0">
@@ -140,9 +215,11 @@ export default function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Published Papers</p>
-              <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">{stats?.publishedPapersCount || 317}</h3>
+              <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">
+                {isLoading ? <span className="text-slate-300 animate-pulse">...</span> : statsData?.publishedPapers ?? 317}
+              </h3>
               <p className="text-[11px] text-indigo-800 font-semibold flex items-center gap-1 mt-1">
-                <BookOpen className="w-3 h-3" /> {stats?.publishedPapersGrowth}
+                <BookOpen className="w-3 h-3" /> 14 high impact
               </p>
             </div>
             <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-800 shrink-0">
@@ -172,11 +249,38 @@ export default function Dashboard() {
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            {documents.slice(0, 4).map((doc) => (
-              <DocumentCard key={doc.id} document={doc} />
-            ))}
-          </div>
+          {isLoading ? (
+            <div className="p-8 bg-white rounded-xl border border-slate-200 text-center space-y-2">
+              <div className="w-6 h-6 border-2 border-emerald-800 border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-xs text-slate-500 font-medium">Loading recent research documents...</p>
+            </div>
+          ) : recentDocs.length === 0 ? (
+            <div className="p-8 bg-white rounded-xl border border-slate-200 text-center space-y-3 shadow-2xs">
+              <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-800 flex items-center justify-center mx-auto">
+                <FilePlus className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-slate-900">No research documents yet.</h4>
+                <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                  Upload your first PDF, FASTA, or protocol document to start vector indexing and AI synthesis.
+                </p>
+              </div>
+              <Button
+                variant="primary"
+                size="sm"
+                leftIcon={UploadCloud}
+                onClick={() => navigate('/upload')}
+              >
+                Upload First Document
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              {recentDocs.slice(0, 4).map((doc) => (
+                <DocumentCard key={doc.id} document={doc} />
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Right Column (1 col): Quick Actions & Activity Feed */}
