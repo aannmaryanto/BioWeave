@@ -69,6 +69,49 @@ export const dashboardService = {
   },
 };
 
+// Document Service Methods
+export const documentService = {
+  /**
+   * Get documents belonging to authenticated user
+   */
+  async getDocuments(params = {}) {
+    const response = await api.get('/api/documents', { params });
+    return response.data;
+  },
+
+  /**
+   * Get single document by ID
+   */
+  async getDocument(id) {
+    const response = await api.get(`/api/documents/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Create new document metadata
+   */
+  async createDocument(data) {
+    const response = await api.post('/api/documents', data);
+    return response.data;
+  },
+
+  /**
+   * Update existing document metadata
+   */
+  async updateDocument(id, data) {
+    const response = await api.put(`/api/documents/${id}`, data);
+    return response.data;
+  },
+
+  /**
+   * Delete document
+   */
+  async deleteDocument(id) {
+    const response = await api.delete(`/api/documents/${id}`);
+    return response.data;
+  },
+};
+
 // Existing Mock Data & Documents Service (Retained for UI display)
 export const MOCK_DOCUMENTS = [
   {

@@ -15,24 +15,72 @@ import Card, { CardTitle } from '../components/ui/Card';
 import DocumentTypeBadge from '../components/documents/DocumentTypeBadge';
 import DocumentMetadata from '../components/documents/DocumentMetadata';
 import Badge from '../components/ui/Badge';
-import { fetchDocumentById } from '../services/api';
+import { fetchDocumentById, documentService } from '../services/api';
 
 export default function DocumentDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [doc, setDoc] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('insights');
 
   useEffect(() => {
-    fetchDocumentById(id).then(setDoc);
+    let isMounted = true;
+    const loadDoc = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await documentService.getDocument(id);
+        if (isMounted && data) {
+          setDoc(data);
+        }
+      } catch (err) {
+        console.warn('API document fetch failed, checking local mock store:', err);
+        try {
+          const mockDoc = await fetchDocumentById(id);
+          if (isMounted && mockDoc) {
+            setDoc(mockDoc);
+          }
+        } catch (mockErr) {
+          if (isMounted) {
+            setError('Document not found or access denied.');
+          }
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadDoc();
+
+    return () => {
+      isMounted = false;
+    };
   }, [id]);
 
-  if (!doc) {
+  if (loading) {
     return (
       <PageContainer title="Loading Document...">
         <div className="p-12 text-center text-slate-500">
           <div className="w-8 h-8 border-2 border-emerald-800 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-sm font-medium">Fetching document details & AI embeddings...</p>
+          <p className="text-sm font-medium">Fetching document details...</p>
+        </div>
+      </PageContainer>
+    );
+  }
+
+  if (error || !doc) {
+    return (
+      <PageContainer title="Document Not Found">
+        <div className="p-12 text-center text-slate-600 bg-white rounded-xl border border-slate-200 max-w-md mx-auto my-8 space-y-3 shadow-xs">
+          <h3 className="text-base font-bold text-slate-800">Document Not Found</h3>
+          <p className="text-xs text-slate-500">{error || 'The requested document could not be located.'}</p>
+          <Button variant="primary" size="sm" onClick={() => navigate('/documents')}>
+            Return to Document Library
+          </Button>
         </div>
       </PageContainer>
     );
