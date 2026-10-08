@@ -38,8 +38,24 @@ const documentSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['uploaded', 'processing', 'processed', 'failed', 'Processed', 'Pending', 'Error'],
+      enum: ['uploaded', 'processing', 'processed', 'completed', 'failed', 'Processed', 'Pending', 'Error'],
       default: 'uploaded',
+    },
+    processingStatus: {
+      type: String,
+      enum: ['pending', 'processing', 'completed', 'failed'],
+      default: 'pending',
+    },
+    extractedText: {
+      type: String,
+      default: '',
+    },
+    processingError: {
+      type: String,
+      default: '',
+    },
+    processedAt: {
+      type: Date,
     },
     uploadedBy: {
       type: mongoose.Schema.Types.ObjectId,
