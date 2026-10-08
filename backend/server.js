@@ -6,6 +6,7 @@ const authRoutes = require('./src/routes/authRoutes');
 const dashboardRoutes = require('./src/routes/dashboardRoutes');
 const documentRoutes = require('./src/routes/documentRoutes');
 const searchRoutes = require('./src/routes/searchRoutes');
+const researchAssistantRoutes = require('./src/routes/researchAssistantRoutes');
 
 // Load environment variables
 dotenv.config();
@@ -35,11 +36,12 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Mount Authentication, Dashboard, Document & Search Routes
+// Mount Authentication, Dashboard, Document, Search & AI Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/ai', researchAssistantRoutes);
 
 // Read PORT from process.env or fallback to 5000
 const PORT = process.env.PORT || 5000;
