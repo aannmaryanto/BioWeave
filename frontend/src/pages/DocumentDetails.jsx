@@ -24,6 +24,8 @@ export default function DocumentDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('insights');
+  const [indexing, setIndexing] = useState(false);
+  const [indexMessage, setIndexMessage] = useState('');
 
   useEffect(() => {
     let isMounted = true;
@@ -165,12 +167,41 @@ export default function DocumentDetails() {
                 Re-process Text
               </Button>
             ))}
+
+            {/* Re-index Vector Chunks Button if completed */}
+            {(doc.processingStatus === 'completed' || doc.status === 'processed' || doc.status === 'Processed') && (
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={async () => {
+                  setIndexing(true);
+                  setIndexMessage('');
+                  try {
+                    const stats = await documentService.indexDocument(doc._id || doc.id);
+                    setIndexMessage(`Indexed: ${stats.chunkCount} passages extracted, ${stats.embeddingCount} vector embeddings.`);
+                  } catch (e) {
+                    setIndexMessage('Indexing failed: ' + (e.response?.data?.message || e.message));
+                  } finally {
+                    setIndexing(false);
+                  }
+                }}
+              >
+                {indexing ? 'Indexing Chunks...' : 'Re-index Vector Chunks'}
+              </Button>
+            )}
           </div>
         </div>
 
         <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-snug">
           {doc.title}
         </h1>
+
+        {indexMessage && (
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex items-center justify-between">
+            <span>{indexMessage}</span>
+            <button onClick={() => setIndexMessage('')} className="text-emerald-700 font-bold hover:underline ml-2">Dismiss</button>
+          </div>
+        )}
 
         {doc.processingError && (
           <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start gap-2">

@@ -149,6 +149,15 @@ async function processDocument(docIdOrObject) {
     if (isMongo) {
       await doc.save();
     }
+
+    // Attempt automatic chunk indexing safely without breaking text extraction
+    try {
+      const { indexDocument } = require('./documentIndexingService');
+      await indexDocument(doc._id || doc.id, doc.uploadedBy || 'mem-user-default');
+    } catch (indexErr) {
+      console.warn('[ProcessingService] Background auto-indexing warning:', indexErr.message);
+    }
+
     return doc;
   } catch (error) {
     doc.processingStatus = 'failed';

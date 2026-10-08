@@ -138,6 +138,25 @@ export const documentService = {
     const response = await api.get(`/api/documents/${id}/text`);
     return response.data;
   },
+
+  /**
+   * Manually trigger vector chunk indexing for a document
+   */
+  async indexDocument(id) {
+    const response = await api.post(`/api/documents/${id}/index`);
+    return response.data;
+  },
+};
+
+// Search Service Methods
+export const searchService = {
+  /**
+   * Perform semantic vector / fallback knowledge search
+   */
+  async search(query, options = {}) {
+    const response = await api.post('/api/search', { query, ...options });
+    return response.data;
+  },
 };
 
 // Existing Mock Data & Documents Service (Retained for UI display)
