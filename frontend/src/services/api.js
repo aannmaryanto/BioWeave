@@ -159,6 +159,17 @@ export const searchService = {
   },
 };
 
+// AI Research Assistant Service Methods
+export const researchAssistantService = {
+  /**
+   * Ask RAG AI research assistant a question
+   */
+  async askQuestion(query, options = {}) {
+    const response = await api.post('/api/ai/research', { query, ...options });
+    return response.data;
+  },
+};
+
 // Existing Mock Data & Documents Service (Retained for UI display)
 export const MOCK_DOCUMENTS = [
   {
