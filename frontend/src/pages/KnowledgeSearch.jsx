@@ -1,36 +1,100 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { SlidersHorizontal } from 'lucide-react';
+import { SlidersHorizontal, Loader2, Sparkles, HelpCircle } from 'lucide-react';
 import PageContainer from '../components/layout/PageContainer';
 import SearchBar from '../components/ui/SearchBar';
 import SearchResult from '../components/research/SearchResult';
 import Card from '../components/ui/Card';
 import { Select } from '../components/ui/Input';
-import { fetchDocuments } from '../services/api';
+import Badge from '../components/ui/Badge';
+import { searchService, fetchDocuments } from '../services/api';
 
 export default function KnowledgeSearch() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialQuery = searchParams.get('q') || 'Lipid nanoparticles mRNA transfection efficiency';
   const [query, setQuery] = useState(initialQuery);
   const [activeQuery, setActiveQuery] = useState(initialQuery);
-  const [documents, setDocuments] = useState([]);
+  const [results, setResults] = useState([]);
+  const [searchMode, setSearchMode] = useState('vector');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [selectedType, setSelectedType] = useState('All');
   const [minRelevance, setMinRelevance] = useState('70');
 
-  useEffect(() => {
-    fetchDocuments().then(setDocuments);
+  const executeSearch = useCallback(async (searchQuery, docType, minRel) => {
+    if (!searchQuery || !searchQuery.trim()) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const data = await searchService.search(searchQuery.trim(), {
+        limit: 10,
+        type: docType === 'All' ? undefined : docType,
+        minSimilarity: parseFloat(minRel) / 100,
+      });
+
+      setSearchMode(data.mode || 'vector');
+
+      const mapped = (data.results || []).map((r) => ({
+        id: r.documentId,
+        chunkId: r.chunkId,
+        title: r.documentTitle || 'Untitled Document',
+        type: r.documentType || 'literature',
+        category: r.documentType || 'Biotech Research',
+        authors: 'BioWeave Researcher',
+        journal: 'BioWeave Knowledge Base',
+        date: '2026',
+        snippet: r.text,
+        relevance: Math.min(99, Math.max(60, Math.round((r.score || 0.85) * 100))),
+        tags: [r.documentType || 'protocol', 'Knowledge Passages'],
+      }));
+
+      setResults(mapped);
+    } catch (err) {
+      console.warn('Search API failed, falling back to local search dataset:', err.message);
+      try {
+        const mockDocs = await fetchDocuments();
+        const filtered = mockDocs
+          .filter((doc) => {
+            const matchesType = docType === 'All' || doc.type === docType || doc.category === docType;
+            const textContent = `${doc.title} ${doc.extractedText || ''} ${doc.snippet || ''}`.toLowerCase();
+            const matchesQuery = textContent.includes(searchQuery.toLowerCase().trim());
+            return matchesType && matchesQuery;
+          })
+          .map((doc) => ({
+            id: doc.id || doc._id,
+            chunkId: `mock-chunk-${doc.id}`,
+            title: doc.title,
+            type: doc.type,
+            category: doc.category || doc.type,
+            authors: doc.authors || 'BioWeave Researcher',
+            journal: doc.journal || 'BioWeave Library',
+            date: doc.date || '2026',
+            snippet: doc.extractedText || doc.snippet,
+            relevance: doc.relevance || 88,
+            tags: doc.tags || ['Knowledge Base'],
+          }));
+
+        setSearchMode('fallback');
+        setResults(filtered);
+      } catch (fallbackErr) {
+        setError('Unable to perform search at this time.');
+      }
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const handleSearch = (q) => {
-    setActiveQuery(q);
-    setSearchParams({ q });
-  };
+  useEffect(() => {
+    executeSearch(activeQuery, selectedType, minRelevance);
+  }, [activeQuery, selectedType, minRelevance, executeSearch]);
 
-  const filteredResults = documents.filter((doc) => {
-    const matchesType = selectedType === 'All' || doc.type === selectedType;
-    const matchesRel = (doc.relevance || 85) >= parseInt(minRelevance);
-    return matchesType && matchesRel;
-  });
+  const handleSearch = (q) => {
+    if (!q || !q.trim()) return;
+    setActiveQuery(q.trim());
+    setSearchParams({ q: q.trim() });
+  };
 
   return (
     <PageContainer title="Knowledge Search">
@@ -131,19 +195,49 @@ export default function KnowledgeSearch() {
 
         {/* Results List (3 cols) */}
         <div className="lg:col-span-3 space-y-4">
-          <div className="flex items-center justify-between text-xs text-slate-500 bg-white px-4 py-2.5 rounded-xl border border-slate-200">
+          <div className="flex items-center justify-between text-xs text-slate-500 bg-white px-4 py-2.5 rounded-xl border border-slate-200 shadow-xs flex-wrap gap-2">
             <span>
-              Found <strong className="text-slate-800">{filteredResults.length}</strong> vector-matched results for{' '}
+              Found <strong className="text-slate-800">{results.length}</strong> passage result{results.length !== 1 ? 's' : ''} for{' '}
               <span className="text-emerald-900 font-semibold">"{activeQuery}"</span>
             </span>
-            <span className="text-[11px]">Ranked by Semantic Cosine Similarity</span>
+
+            <div className="flex items-center gap-2">
+              {searchMode === 'vector' ? (
+                <Badge variant="success" size="sm" className="bg-emerald-100 text-emerald-900 border-emerald-300">
+                  <Sparkles className="w-3 h-3 text-emerald-700" />
+                  <span>Vector Cosine Search</span>
+                </Badge>
+              ) : (
+                <Badge variant="warning" size="sm" className="bg-amber-50 text-amber-900 border-amber-300">
+                  <HelpCircle className="w-3 h-3 text-amber-700" />
+                  <span>Fallback Text Search</span>
+                </Badge>
+              )}
+            </div>
           </div>
 
-          <div className="space-y-4">
-            {filteredResults.map((result) => (
-              <SearchResult key={result.id} result={result} query={activeQuery} />
-            ))}
-          </div>
+          {loading ? (
+            <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 shadow-xs space-y-3">
+              <Loader2 className="w-7 h-7 border-2 border-emerald-800 border-t-transparent rounded-full animate-spin mx-auto text-emerald-800" />
+              <p className="text-xs font-semibold text-slate-700">Searching research passages & vector embeddings...</p>
+            </div>
+          ) : error ? (
+            <div className="p-8 text-center bg-rose-50 rounded-2xl border border-rose-200 text-xs text-rose-800 space-y-2">
+              <p className="font-bold text-sm">Search Error</p>
+              <p>{error}</p>
+            </div>
+          ) : results.length === 0 ? (
+            <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 space-y-2 text-slate-500 shadow-xs">
+              <p className="font-bold text-slate-800 text-sm">No Relevant Passages Found</p>
+              <p className="text-xs">Try broadening your search query or selecting "All Document Types".</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {results.map((result) => (
+                <SearchResult key={result.chunkId || result.id} result={result} query={activeQuery} />
+              ))}
+            </div>
+          )}
         </div>
 
       </div>

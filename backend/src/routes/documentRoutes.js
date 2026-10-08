@@ -10,6 +10,7 @@ const {
   getDocumentFile,
   updateDocument,
   deleteDocument,
+  indexDocumentHandler,
 } = require('../controllers/documentController');
 const { protect } = require('../middleware/authMiddleware');
 const handleUpload = require('../middleware/uploadMiddleware');
@@ -24,6 +25,9 @@ router.post('/upload', protect, handleUpload, uploadDocument);
 
 // Document processing endpoint
 router.post('/:id/process', protect, processDocumentHandler);
+
+// Document vector indexing endpoint
+router.post('/:id/index', protect, indexDocumentHandler);
 
 // Extracted text retrieval endpoint
 router.get('/:id/text', protect, getExtractedTextHandler);

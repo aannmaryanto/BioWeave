@@ -607,6 +607,29 @@ const deleteDocument = async (req, res) => {
   }
 };
 
+/**
+ * Manually index or re-index a document by generating text chunks and vector embeddings
+ * @route POST /api/documents/:id/index
+ * @access Private
+ */
+const indexDocumentHandler = async (req, res) => {
+  try {
+    const userId = req.user._id || req.user.id;
+    const docId = req.params.id;
+
+    const { indexDocument } = require('../services/documentIndexingService');
+    const result = await indexDocument(docId, userId);
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('Index Document Error:', error.message);
+    const statusCode = error.statusCode || 500;
+    return res.status(statusCode).json({
+      message: error.message || 'Error indexing document',
+    });
+  }
+};
+
 module.exports = {
   getDocuments,
   getDocumentById,
@@ -617,5 +640,6 @@ module.exports = {
   getDocumentFile,
   updateDocument,
   deleteDocument,
+  indexDocumentHandler,
   inMemoryDocuments,
 };
